@@ -1,60 +1,83 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, AlertTriangle, CheckCircle2, Clock, MapPin, Tag, Cpu, Zap, Target } from "lucide-react"
-import type { NGORequest, Volunteer, AllocationResult } from "@/types/allocation"
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Tag,
+  Cpu,
+  Zap,
+  Target,
+} from "lucide-react";
+import type {
+  NGORequest,
+  Volunteer,
+  AllocationResult,
+} from "@/types/allocation";
 
 interface AIDashboardProps {
-  requests: NGORequest[]
-  volunteers: Volunteer[]
-  onAllocationComplete?: (results: AllocationResult[]) => void
+  requests: NGORequest[];
+  volunteers: Volunteer[];
+  onAllocationComplete?: (results: AllocationResult[]) => void;
 }
 
 const urgencyConfig = {
   High: {
     label: "High",
-    classes: "bg-[oklch(0.62_0.22_25)]/15 text-[oklch(0.75_0.22_25)] border-[oklch(0.62_0.22_25)]/30",
+    classes:
+      "bg-[oklch(0.62_0.22_25)]/15 text-[oklch(0.75_0.22_25)] border-[oklch(0.62_0.22_25)]/30",
     dot: "bg-[oklch(0.62_0.22_25)]",
     glow: "shadow-[oklch(0.62_0.22_25)]/20",
   },
   Medium: {
     label: "Medium",
-    classes: "bg-[oklch(0.78_0.18_75)]/15 text-[oklch(0.88_0.18_75)] border-[oklch(0.78_0.18_75)]/30",
+    classes:
+      "bg-[oklch(0.78_0.18_75)]/15 text-[oklch(0.88_0.18_75)] border-[oklch(0.78_0.18_75)]/30",
     dot: "bg-[oklch(0.78_0.18_75)]",
     glow: "shadow-[oklch(0.78_0.18_75)]/20",
   },
   Low: {
     label: "Low",
-    classes: "bg-[oklch(0.68_0.18_145)]/15 text-[oklch(0.78_0.18_145)] border-[oklch(0.68_0.18_145)]/30",
+    classes:
+      "bg-[oklch(0.68_0.18_145)]/15 text-[oklch(0.78_0.18_145)] border-[oklch(0.68_0.18_145)]/30",
     dot: "bg-[oklch(0.68_0.18_145)]",
     glow: "shadow-[oklch(0.68_0.18_145)]/20",
   },
-}
+};
 
 const availabilityConfig = {
-  Available: "bg-[oklch(0.68_0.18_145)]/15 text-[oklch(0.78_0.18_145)] border-[oklch(0.68_0.18_145)]/30",
+  Available:
+    "bg-[oklch(0.68_0.18_145)]/15 text-[oklch(0.78_0.18_145)] border-[oklch(0.68_0.18_145)]/30",
   Busy: "bg-[oklch(0.78_0.18_75)]/15 text-[oklch(0.88_0.18_75)] border-[oklch(0.78_0.18_75)]/30",
   Offline: "bg-secondary text-muted-foreground border-border",
-}
+};
 
 const typeIcons: Record<string, string> = {
   Food: "🥗",
   Medical: "🏥",
   Volunteers: "👥",
-}
+};
 
-async function runGeminiMatching(requests: NGORequest[], volunteers: Volunteer[]): Promise<AllocationResult[]> {
+async function runGeminiMatching(
+  requests: NGORequest[],
+  volunteers: Volunteer[],
+): Promise<AllocationResult[]> {
   try {
-    const apiKey = process.env.GEMINI_API_KEY
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("[v0] GEMINI_API_KEY not found. Falling back to basic matching.")
-      return fallbackAI(requests, volunteers)
+      console.error(
+        "[v0] NEXT_PUBLIC_GEMINI_API_KEY not found. Falling back to basic matching.",
+      );
+      return fallbackAI(requests, volunteers);
     }
 
-    const { GoogleGenerativeAI } = await import("@google/generative-ai")
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `You are an expert NGO resource allocation system. Your task is to match volunteers with NGO requests based on skill relevance, location proximity, and availability.
 
@@ -83,76 +106,91 @@ Output ONLY valid JSON array with NO additional text or markdown formatting:
   }
 ]
 
-Do not include any text before or after the JSON array.`
+Do not include any text before or after the JSON array.`;
 
-    const result = await model.generateContent(prompt)
-    const responseText = result.response.text()
-    
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+
     // Clean response - remove markdown code blocks if present
-    let jsonText = responseText.trim()
+    let jsonText = responseText.trim();
     if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/^```json\n?/, "").replace(/\n?```$/, "")
+      jsonText = jsonText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
     } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/^```\n?/, "").replace(/\n?```$/, "")
+      jsonText = jsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
     }
 
-    const parsed = JSON.parse(jsonText)
-    console.log("[v0] Gemini matched results:", parsed)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed = JSON.parse(jsonText);
+    console.log("[v0] Gemini matched results:", parsed);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.error("[v0] Error calling Gemini API:", error)
-    return fallbackAI(requests, volunteers)
+    console.error("[v0] Error calling Gemini API:", error);
+    return fallbackAI(requests, volunteers);
   }
 }
 
-function fallbackAI(requests: NGORequest[], volunteers: Volunteer[]): AllocationResult[] {
-  const available = volunteers.filter((v) => v.availability === "Available")
-  if (!available.length || !requests.length) return []
+function fallbackAI(
+  requests: NGORequest[],
+  volunteers: Volunteer[],
+): AllocationResult[] {
+  const available = volunteers.filter((v) => v.availability === "Available");
+  if (!available.length || !requests.length) return [];
 
   const sorted = [...requests].sort((a, b) => {
-    const order = { High: 0, Medium: 1, Low: 2 }
-    return order[a.urgency] - order[b.urgency]
-  })
+    const order = { High: 0, Medium: 1, Low: 2 };
+    return order[a.urgency] - order[b.urgency];
+  });
 
-  const results: AllocationResult[] = []
-  const usedVolunteers = new Set<string>()
+  const results: AllocationResult[] = [];
+  const usedVolunteers = new Set<string>();
 
   for (const req of sorted) {
     // First try to match by skill
     let match = available.find((v) => {
-      if (usedVolunteers.has(v.id)) return false
-      const reqLower = req.type.toLowerCase()
+      if (usedVolunteers.has(v.id)) return false;
+      const reqLower = req.type.toLowerCase();
       return v.skills.some((s) => {
-        const skillLower = s.toLowerCase()
+        const skillLower = s.toLowerCase();
         return (
-          (reqLower.includes("medical") && (skillLower.includes("medical") || skillLower.includes("nurse") || skillLower.includes("doctor"))) ||
-          (reqLower.includes("food") && (skillLower.includes("food") || skillLower.includes("cook") || skillLower.includes("nutrition"))) ||
-          (reqLower.includes("volunteer") && skillLower.includes("coordination"))
-        )
-      })
-    })
+          (reqLower.includes("medical") &&
+            (skillLower.includes("medical") ||
+              skillLower.includes("nurse") ||
+              skillLower.includes("doctor"))) ||
+          (reqLower.includes("food") &&
+            (skillLower.includes("food") ||
+              skillLower.includes("cook") ||
+              skillLower.includes("nutrition"))) ||
+          (reqLower.includes("volunteer") &&
+            skillLower.includes("coordination"))
+        );
+      });
+    });
 
     // If no skill match, try location match
     if (!match) {
       match = available.find(
-        (v) => !usedVolunteers.has(v.id) && v.location.toLowerCase().includes(req.location.toLowerCase().split(",")[0])
-      )
+        (v) =>
+          !usedVolunteers.has(v.id) &&
+          v.location
+            .toLowerCase()
+            .includes(req.location.toLowerCase().split(",")[0]),
+      );
     }
 
     // If still no match, just pick first available
     if (!match) {
-      match = available.find((v) => !usedVolunteers.has(v.id))
+      match = available.find((v) => !usedVolunteers.has(v.id));
     }
 
     if (match) {
-      usedVolunteers.add(match.id)
-      const skillMatch = req.type === "Medical"
-        ? match.skills.some((s) => /medical|nurse|doctor|aid/i.test(s))
-        : req.type === "Food"
-        ? match.skills.some((s) => /cook|food|nutrition/i.test(s))
-        : req.type === "Volunteers"
-        ? match.skills.some((s) => /coordination|organiz|manage/i.test(s))
-        : false
+      usedVolunteers.add(match.id);
+      const skillMatch =
+        req.type === "Medical"
+          ? match.skills.some((s) => /medical|nurse|doctor|aid/i.test(s))
+          : req.type === "Food"
+            ? match.skills.some((s) => /cook|food|nutrition/i.test(s))
+            : req.type === "Volunteers"
+              ? match.skills.some((s) => /coordination|organiz|manage/i.test(s))
+              : false;
 
       results.push({
         volunteer: match.name,
@@ -161,42 +199,60 @@ function fallbackAI(requests: NGORequest[], volunteers: Volunteer[]): Allocation
         reason: skillMatch
           ? `Skill-matched volunteer with expertise in "${req.type}"`
           : `Best available volunteer near ${req.location}`,
-        matchScore: skillMatch ? Math.floor(80 + Math.random() * 18) : Math.floor(60 + Math.random() * 20),
-      })
+        matchScore: skillMatch
+          ? Math.floor(80 + Math.random() * 18)
+          : Math.floor(60 + Math.random() * 20),
+      });
     }
   }
 
-  return results
+  return results;
 }
 
 const aiSteps = [
-  { icon: Target, text: "Scanning active requests...", color: "text-[oklch(0.62_0.22_25)]" },
+  {
+    icon: Target,
+    text: "Scanning active requests...",
+    color: "text-[oklch(0.62_0.22_25)]",
+  },
   { icon: Cpu, text: "Analyzing volunteer profiles...", color: "text-primary" },
-  { icon: MapPin, text: "Computing proximity matrix...", color: "text-[oklch(0.78_0.18_75)]" },
-  { icon: Zap, text: "Optimizing allocation pairs...", color: "text-[oklch(0.68_0.18_145)]" },
-]
+  {
+    icon: MapPin,
+    text: "Computing proximity matrix...",
+    color: "text-[oklch(0.78_0.18_75)]",
+  },
+  {
+    icon: Zap,
+    text: "Optimizing allocation pairs...",
+    color: "text-[oklch(0.68_0.18_145)]",
+  },
+];
 
-export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDashboardProps) {
-  const [aiRunning, setAiRunning] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [aiResults, setAiResults] = useState<AllocationResult[] | null>(null)
+export function AIDashboard({
+  requests,
+  volunteers,
+  onAllocationComplete,
+}: AIDashboardProps) {
+  const [aiRunning, setAiRunning] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [aiResults, setAiResults] = useState<AllocationResult[] | null>(null);
 
   const runAI = async () => {
-    setAiRunning(true)
-    setAiResults(null)
-    setCurrentStep(0)
+    setAiRunning(true);
+    setAiResults(null);
+    setCurrentStep(0);
 
     // Animated steps
     for (let i = 0; i < aiSteps.length; i++) {
-      setCurrentStep(i)
-      await new Promise((r) => setTimeout(r, 700))
+      setCurrentStep(i);
+      await new Promise((r) => setTimeout(r, 700));
     }
 
-    const results = await runGeminiMatching(requests, volunteers)
-    setAiResults(results)
-    setAiRunning(false)
-    onAllocationComplete?.(results)
-  }
+    const results = await runGeminiMatching(requests, volunteers);
+    setAiResults(results);
+    setAiRunning(false);
+    onAllocationComplete?.(results);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -211,7 +267,9 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[oklch(0.78_0.18_75)]/10 border border-[oklch(0.78_0.18_75)]/20">
               <AlertTriangle className="w-3.5 h-3.5 text-[oklch(0.78_0.18_75)]" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">Active Requests</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              Active Requests
+            </h3>
           </div>
           <motion.span
             key={requests.length}
@@ -232,7 +290,7 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
           <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1 scrollbar-thin">
             <AnimatePresence>
               {requests.map((req, i) => {
-                const u = urgencyConfig[req.urgency]
+                const u = urgencyConfig[req.urgency];
                 return (
                   <motion.div
                     key={req.id}
@@ -243,27 +301,35 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                     whileHover={{ scale: 1.02, x: 4 }}
                     className={`flex items-start gap-3 p-3 rounded-xl bg-secondary/50 border border-border hover:border-primary/30 transition-all cursor-default shadow-lg ${u.glow}`}
                   >
-                    <span className="text-lg leading-none mt-0.5">{typeIcons[req.type] || "📋"}</span>
+                    <span className="text-lg leading-none mt-0.5">
+                      {typeIcons[req.type] || "📋"}
+                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-foreground truncate">{req.title}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${u.classes}`}>
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {req.title}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${u.classes}`}
+                        >
                           <span className={`w-1 h-1 rounded-full ${u.dot}`} />
                           {u.label}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <Tag className="w-3 h-3" />{req.type}
+                          <Tag className="w-3 h-3" />
+                          {req.type}
                         </span>
                         <span>·</span>
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />{req.location}
+                          <MapPin className="w-3 h-3" />
+                          {req.location}
                         </span>
                       </div>
                     </div>
                   </motion.div>
-                )
+                );
               })}
             </AnimatePresence>
           </div>
@@ -282,7 +348,9 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[oklch(0.68_0.18_145)]/10 border border-[oklch(0.68_0.18_145)]/20">
               <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.68_0.18_145)]" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">Volunteer Pool</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              Volunteer Pool
+            </h3>
           </div>
           <motion.span
             key={volunteers.length}
@@ -324,8 +392,12 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                   </motion.div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-foreground">{vol.name}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${availabilityConfig[vol.availability]}`}>
+                      <span className="text-sm font-medium text-foreground">
+                        {vol.name}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${availabilityConfig[vol.availability]}`}
+                      >
                         {vol.availability}
                       </span>
                     </div>
@@ -352,19 +424,29 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
           <motion.div
             className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-[oklch(0.65_0.18_220)] shadow-lg shadow-primary/25"
             animate={aiRunning ? { rotate: 360 } : {}}
-            transition={{ duration: 2, repeat: aiRunning ? Infinity : 0, ease: "linear" }}
+            transition={{
+              duration: 2,
+              repeat: aiRunning ? Infinity : 0,
+              ease: "linear",
+            }}
           >
             <Sparkles className="w-4 h-4 text-primary-foreground" />
           </motion.div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">AI Allocation Engine</h3>
-            <p className="text-[10px] text-muted-foreground">Powered by intelligent matching algorithms</p>
+            <h3 className="text-sm font-semibold text-foreground">
+              AI Allocation Engine
+            </h3>
+            <p className="text-[10px] text-muted-foreground">
+              Powered by intelligent matching algorithms
+            </p>
           </div>
         </div>
 
         <motion.button
           onClick={runAI}
-          disabled={aiRunning || requests.length === 0 || volunteers.length === 0}
+          disabled={
+            aiRunning || requests.length === 0 || volunteers.length === 0
+          }
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-xl bg-gradient-to-r from-primary to-[oklch(0.65_0.18_220)] text-primary-foreground font-semibold text-sm shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all overflow-hidden relative"
@@ -375,7 +457,7 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
             animate={{ x: ["-100%", "100%"] }}
             transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
           />
-          
+
           <AnimatePresence mode="wait">
             {aiRunning ? (
               <motion.div
@@ -388,7 +470,11 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                 <motion.span
                   className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                  transition={{
+                    duration: 0.8,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
                 />
                 Processing with AI...
               </motion.div>
@@ -424,9 +510,9 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
             >
               <div className="space-y-3">
                 {aiSteps.map((step, i) => {
-                  const Icon = step.icon
-                  const isActive = i === currentStep
-                  const isComplete = i < currentStep
+                  const Icon = step.icon;
+                  const isActive = i === currentStep;
+                  const isComplete = i < currentStep;
 
                   return (
                     <motion.div
@@ -438,22 +524,32 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                       }}
                       className="flex items-center gap-3"
                     >
-                      <div className={`flex items-center justify-center w-6 h-6 rounded-lg ${
-                        isComplete
-                          ? "bg-[oklch(0.68_0.18_145)]/20"
-                          : isActive
-                          ? "bg-primary/20"
-                          : "bg-secondary"
-                      }`}>
+                      <div
+                        className={`flex items-center justify-center w-6 h-6 rounded-lg ${
+                          isComplete
+                            ? "bg-[oklch(0.68_0.18_145)]/20"
+                            : isActive
+                              ? "bg-primary/20"
+                              : "bg-secondary"
+                        }`}
+                      >
                         {isComplete ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.68_0.18_145)]" />
                         ) : (
-                          <Icon className={`w-3.5 h-3.5 ${isActive ? step.color : "text-muted-foreground"}`} />
+                          <Icon
+                            className={`w-3.5 h-3.5 ${isActive ? step.color : "text-muted-foreground"}`}
+                          />
                         )}
                       </div>
-                      <span className={`text-xs font-medium ${
-                        isActive ? "text-foreground" : isComplete ? "text-muted-foreground" : "text-muted-foreground/50"
-                      }`}>
+                      <span
+                        className={`text-xs font-medium ${
+                          isActive
+                            ? "text-foreground"
+                            : isComplete
+                              ? "text-muted-foreground"
+                              : "text-muted-foreground/50"
+                        }`}
+                      >
                         {step.text}
                       </span>
                       {isActive && (
@@ -471,7 +567,7 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                         </motion.div>
                       )}
                     </motion.div>
-                  )
+                  );
                 })}
               </div>
             </motion.div>
@@ -494,7 +590,8 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
               >
                 <CheckCircle2 className="w-4 h-4 text-[oklch(0.68_0.18_145)]" />
                 <span className="text-xs font-semibold text-[oklch(0.68_0.18_145)]">
-                  Allocation Complete — {aiResults.length} match{aiResults.length !== 1 ? "es" : ""} found
+                  Allocation Complete — {aiResults.length} match
+                  {aiResults.length !== 1 ? "es" : ""} found
                 </span>
               </motion.div>
 
@@ -504,7 +601,7 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                 </div>
               ) : (
                 aiResults.map((result, i) => {
-                  const u = urgencyConfig[result.priority]
+                  const u = urgencyConfig[result.priority];
                   return (
                     <motion.div
                       key={i}
@@ -531,23 +628,30 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${u.classes}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${u.classes}`}
+                          >
                             <span className={`w-1 h-1 rounded-full ${u.dot}`} />
                             {result.priority}
                           </span>
                           <motion.span
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            transition={{ delay: 0.3 + i * 0.1, type: "spring" }}
+                            transition={{
+                              delay: 0.3 + i * 0.1,
+                              type: "spring",
+                            }}
                             className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20"
                           >
                             {result.matchScore}%
                           </motion.span>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{result.reason}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {result.reason}
+                      </p>
                     </motion.div>
-                  )
+                  );
                 })
               )}
             </motion.div>
@@ -555,5 +659,5 @@ export function AIDashboard({ requests, volunteers, onAllocationComplete }: AIDa
         </AnimatePresence>
       </motion.section>
     </div>
-  )
+  );
 }
